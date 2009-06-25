@@ -13,7 +13,7 @@ int gyro = 0; // gyro reading
 int gyro_ref = 0; // 2.5v reference
 int y = 0; // y acc reading
 int x = 0; // x acc reading
-int time = 0; // time
+int time = 10; // time
 long int previous = 0; // last run
 #define average_size 10
 float y_average[average_size];
@@ -27,7 +27,8 @@ float x_zero_g = 0; // x acc zero point in g calculated at reset
 int g = 97; // ±1g voltage of 0.312V is (0.312V/3.3V) * 1024 = 97 
 int nominal_g = 776; // Nominal G for y-axis based on the fact that
 					 // zero g is supposed to be 2.5v ((2.5V/3.3V) * 1024 = 776)
-int nominal_xg = 747;					 
+int nominal_xg = 747; // Nominal g based on 2.41v as zero g
+		 
  
 PushButton pushButton(2);
 
@@ -81,7 +82,7 @@ void processData()
     float y_radians = asin(y_g); // get radians based on g
     float y_degree = (180.0 / PI) * y_radians; // calculate degree
     
-    float x_diff = x - nominal_g;
+    float x_diff = x - nominal_xg;
     float x_g = x_diff / g;
     x_g -= x_zero_g;
     x_g = constrain(x_g, -0.999999, 0.999999); // Error adjust 
@@ -90,7 +91,7 @@ void processData()
 
     ////// Gyro Calculations ///////
     // Volt /  10-bit * milliV / degree per second / radians to degree.
-    float conversion =  (3.3 / 1024) * 1000 / 0.15; // 57.29578;
+    float conversion = (3.3 / 1024) * 1000 / 0.15; // 21.484375
     float gyro_radians =  ((gyro - nominal_g) * conversion) ;
     
     ////// Create Average //////
@@ -132,15 +133,15 @@ void processData()
     Serial.println(x_radians);*/
     
     /// PROCESSING COMMUNICATION ///
-/*    Serial.print(y_degree);
+    Serial.print(y_degree);
     Serial.print(",");
     Serial.print(yaverage);
     Serial.print(",");
     Serial.print(x_degree);
     Serial.print(",");
     Serial.print(xaverage);
-    Serial.print(",");*/
-    Serial.println(x_volt);    
+    Serial.print(",");
+    Serial.println(gyro);    
 }
 
 /* Calibration routine, ran at startup to get zero g. */
@@ -167,7 +168,7 @@ float calibrateX(){
         delay(2);
     }
     x = total / 10;
-    float diff = x - nominal_g;
+    float diff = x - nominal_xg;
     x_zero_g = diff / g;
     float radian = asin(x_zero_g);
     return (180/PI)*radian;
