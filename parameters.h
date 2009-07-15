@@ -64,8 +64,9 @@
 
 // gyro is 2 mv/(deg/sec), ADC is 2.5mv/tick: 2/2.5 ; degrees/sec = adc * .8 
 // gyro is 2 mv/(deg/sec), ADC is 3.22mv/tick: 2/3.3  ; degrees/sec = adc * .62
+// ADXRS401 gyro is 15mv/(deg/sec), ADC is 3.22mv/bit: 15/3.22  ; degrees/sec = adc * 4.65
 // ADXRS401 gyro is 15mv/(deg/sec), ADC is 4.88mv/bit: 15/4.88  ; degrees/sec = adc * 3.07
-#define 	GYRO_SCALE 			3.07
+#define 	GYRO_SCALE 			-4.65
 
 
 // ADC bits per 90 degrees
@@ -77,6 +78,7 @@
 //	You might change this by .1 at a time until tuned    
 //#define	neutral_PARAM 	-7.7		// "angle of natural balance"  
 #define		neutral_PARAM 	-2			// "angle of natural balance"  
+#define		neutral_PARAM 	0			// "angle of natural balance"  
 
 //	Motor Bias - left and right
 #define		mb_PARAM 	5		//	PWM required to get the motor turning
@@ -114,5 +116,5 @@
 #define x_pin 		0
 #define y_pin 		1
 #define gyro_pin 	2 
-#define gyroref_pin 3
+#define gyroref_pin     3
 #define pot_pin 	4

@@ -1,9 +1,10 @@
 /*
 *     Based on Trammell Hudsons work on the autopilot system.
  *     see http://www.rotomotion.com/downloads/tilt.c for original
- *     code. Although, this version is based on Jim Schwendeman's
- *     Wiring implementation of tilt.c found at sparkfun's forum
- *     (http://forum.sparkfun.com/viewtopic.php?t=61865).
+ *     code. Although, this version is based on James Ronald's
+ *     c implementation found at Google code; http://code.google.com/p/b3r1/.
+ *     For excessive comments on Kalman look at the tilt.pde code.
+ *     Tilt.pde is almost unchanged 
  *     Thanks also to Michael P. Thompson for his work on the 
  *     Kalman implementation in C, making it easier for us 
  *     non-mathematicians. 
@@ -101,10 +102,8 @@ void setup()
 // Constant Loop for our bot. 
 void loop() {
     if(pushButton.getState()){
-        
         digitalWrite(led1_pin, HIGH);   // Light a LED
         digitalWrite(led2_pin, LOW);	// Lid a LED
-        
         balance(); 			// Run balance script.
     }
     else{
@@ -112,7 +111,8 @@ void loop() {
         digitalWrite(led2_pin, HIGH);	// Light a LED
     }
 }
-/* BALANCE my robot, please 	*/
+
+/* BALANCE my robot, please */
 void balance(void)
 {
 	long int g_bias = 0;
@@ -144,14 +144,15 @@ void balance(void)
 		pot = map(analogRead(pot_pin), 0, 1023, 0, 100);
                 
 		// get rate gyro reading and convert to deg/sec
-		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. 	because forward is CCW)
-                // q_m = (analogRead(gyro_pin) - g_bias) * -0.3255;	// each bit = 0.3255 /deg/sec (neg. because forward is CCW)
-                q_m = (analogRead(gyro_pin) - q_bias) * -0.214844;      // 3.3v / 1024-bit / 0.15mV * 10
+		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. because forward is CCW)
+                // q_m = (analogRead(gyro_pin) - g_bias) * -0.3255;	// each bit = 0.3255 /deg/sec 
+                // q_m = (analogRead(gyro_pin) - q_bias) * -0.214844;      // 3.3v / 1024-bit / 0.15mV * 10
+                q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;      // 3.3v / 1024-bit / 0.15mV * 10
 		state_update(q_m);                                	// Update Kalman filter
 		
 		// get Accelerometer reading and convert to units of gravity.  
                 // x = (GetADC(accel_sensor) - x_offset) / 204.9;	// (205 bits/G)
-		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.00488;	// each bit = 0.00488/G
+		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.00322;	// each bit = 0.00322/G
 
 		// x is measured in multiples of earth gravitation g
 		// therefore x = sin (tilt) or tilt = arcsin(x)
