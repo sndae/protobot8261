@@ -28,14 +28,17 @@ PushButton pushButton(2);
 
 // ADC (Built in 10 bit 0-5V) Information.
 // Each ADC unit equals: 5.0V / 1024 = 0.004882812 V = 4.8828125 mV
+// Each ADC unit equals: 3.3V / 1024 = 0.003222656 V = 3.22265625 mV
 //
 // Rate Gyro (ADXRS401) Information:
 // Rate Gyro measures rate at 15 mV/degree/second
 // Each ADC Gyro unit equals: 4.8828125 / 15.0 = 0.325520833 degrees/sec
+// Each ADC Gyro unit equals: 3.22265625 / 15.0 = 0.21484375 degrees/sec
 //
 // Acceleromter (ADXL203) Information:
 // Accelerometer measures acceleration at 1000 mV/g
 // Each ADC unit equals: 4.8828125 / 1000mv/G = 0.0048828125 g
+// Each ADC unit equals: 3.22265625 / 1000mv/G = 0.003222656 g
 
 // Balance
 int torque;
@@ -45,9 +48,6 @@ int rate_cnt = 0;
 double angle_drift = 0.0;
 double angle_x = 0.0;
 double angle_avg[10];
-double overspeed;
-double overspeed_integral;
-double gyro_integrated;
 double rate_avg[20];     // rate average.
 
 /*
@@ -65,26 +65,20 @@ double Kp = 25;				// balance loop P gain
 double Ki = 5;				// balance loop I gain
 double Kd = 1.5;			// balance loop D gain
 
-//double Ksteer;					// steering control gain
-//double Ksteer2;					// steering control tilt sensitivity
-//double Kspeed; 					// speed tracking gain
-double neutral = neutral_PARAM;		                // "angle of natural balance"
+//double Ksteer;			// steering control gain
+//double Ksteer2;			// steering control tilt sensitivity
+//double Kspeed; 			// speed tracking gain
+double neutral = neutral_PARAM;		// "angle of natural balance"
 
-//double KpTurn;					// turn rate loop P gain
-//double KiTurn;					// turn rate loop I gain
-//double KdTurn;					// turn rate loop D gain
-
-volatile unsigned int accelRaw;
-volatile unsigned int gyroRaw;
-
-double current_angle = 0;
-double current_rate = 0;
+//double KpTurn;			// turn rate loop P gain
+//double KiTurn;			// turn rate loop I gain
+//double KdTurn;			// turn rate loop D gain
 
 // Analog Input
-double pot;			 				// analog input from Potentiometer
+double pot;			 	// analog input from Potentiometer
 
 // Time
-unsigned long last_read; 			// Last time we ran our script
+unsigned long last_read; 		// Last time we ran our script
 
 // Init mode
 void setup()
@@ -92,11 +86,11 @@ void setup()
     pinMode(led1_pin, OUTPUT); 		// LED 1
     pinMode(led2_pin, OUTPUT);		// LED 2
     analogReference(EXTERNAL); 		// 3.3v External Ref on Arduino
-    Serial.begin(38400);			// Serial at 38,400 Baud rate.
-    mySerial.begin(38400);			// Serial at 38,400 Baud rate used for motor.
-    motor.begin();					// Init Motor controller.
-    motor.stopBothMotors();			// Stop.
-    delay(200);    					// Wait 0.2 sec.
+    Serial.begin(38400);		// Serial at 38,400 Baud rate.
+    mySerial.begin(38400);		// Serial at 38,400 Baud rate used for motor.
+    motor.begin();			// Init Motor controller.
+    motor.stopBothMotors();		// Stop.
+    delay(200);    			// Wait 0.2 sec.
 }
 
 // Constant Loop for our bot. 
@@ -116,11 +110,11 @@ void loop() {
 void balance(void)
 {
 	long int g_bias = 0;
-//	double x_offset = 532;		//offset value 2.56V * 1024 / 4.93V = 4254
-	double q_m = 0.0;
-	double int_angle = 0.0;
-	double x = 0.0;
-	double tilt = 0.0;
+//	double x_offset = 532;		// offset value 2.56V * 1024 / 4.93V = 4254
+	double q_m = 0.0;               // gyro in degrees per second
+	double int_angle = 0.0;           
+	double x = 0.0;                 // raw x value
+	double tilt = 0.0;              // X * (pi/180.0). Will store x in degree's
 
 	/* as a 1st step, a reference measurement of the angular rate sensor is 
 	 * done. This value is used as offset compensation */
@@ -145,14 +139,14 @@ void balance(void)
                 
 		// get rate gyro reading and convert to deg/sec
 		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. because forward is CCW)
+                // q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;      // 3.3v / 1024-bit / 0.15mV * 10
                 // q_m = (analogRead(gyro_pin) - g_bias) * -0.3255;	// each bit = 0.3255 /deg/sec 
-                // q_m = (analogRead(gyro_pin) - q_bias) * -0.214844;      // 3.3v / 1024-bit / 0.15mV * 10
-                q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;      // 3.3v / 1024-bit / 0.15mV * 10
+                q_m = (analogRead(gyro_pin) - q_bias) * -0.21484375;      // 3.3v / 1024-bit / 0.15mV * 10
 		state_update(q_m);                                	// Update Kalman filter
 		
 		// get Accelerometer reading and convert to units of gravity.  
                 // x = (GetADC(accel_sensor) - x_offset) / 204.9;	// (205 bits/G)
-		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.00322;	// each bit = 0.00322/G
+		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.003222656;	// each bit = 0.00322/G
 
 		// x is measured in multiples of earth gravitation g
 		// therefore x = sin (tilt) or tilt = arcsin(x)
@@ -214,6 +208,7 @@ void balance(void)
 		//torque = (int) ((angle -3.5) * Kp) + (rate * Kd);//  + (int_angle * Ki);
 
 		// Set PWM values for both motors
+                // See motor.pde for more comments on the theoretics behind torque. etc.
 		driveMotors(torque);
 		printData();		// Print data for debugging.
 	}
