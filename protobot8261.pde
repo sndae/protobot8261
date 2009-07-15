@@ -171,8 +171,9 @@ void balance(void)
                     rate_cnt = 0;
                 rate = getAverageDouble(rate_avg, 20);
 		
+                
                 // Balance.  The most important line in the entire program.
-		torque = (pot * angle)+ ((angle_drift) * pot) + (rate * 2.5);
+		torque = (pot * ((-157.7 - q_bias) + angle)) + ((angle_drift) * pot) + (rate * 2.5); 
                 
 		// change from current angle to something proportional to speed
 		// should this be the abs val of the cur speed or just curr speed?
@@ -221,11 +222,11 @@ void printData()
 {
     Serial.print(int(angle));
     Serial.print(",");
-    Serial.print(int(angle_x));
+    Serial.print(int((-157.7 - q_bias) + angle));
     Serial.print(",");
     Serial.print(int(rate));
     Serial.print(",");
-    Serial.print(int(angle_drift));
+    Serial.print((-157.7 - q_bias) - angle);
     Serial.print(",");
     Serial.println(pot);
 }
