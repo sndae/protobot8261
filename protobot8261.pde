@@ -46,9 +46,10 @@ int angle_cnt = 0;
 int rate_cnt = 0;
 
 double angle_drift = 0.0;
+double angle_velocity = 0.0;
 double angle_x = 0.0;
 double angle_avg[10];
-double rate_avg[20];     // rate average.
+double rate_avg[50];     // rate average.
 
 /*
  * Our two states, the angle and the gyro bias.  As a byproduct of computing
@@ -63,7 +64,7 @@ double	rate = 0.0;
 //	PID Konstants
 double Kp = 25;				// balance loop P gain
 double Ki = 5;				// balance loop I gain
-double Kd = 1.5;			// balance loop D gain
+double Kd = 1;    			// balance loop D gain
 
 //double Ksteer;			// steering control gain
 //double Ksteer2;			// steering control tilt sensitivity
@@ -115,6 +116,8 @@ void balance(void)
 	double int_angle = 0.0;           
 	double x = 0.0;                 // raw x value
 	double tilt = 0.0;              // X * (pi/180.0). Will store x in degree's
+        double last_angle, last_tilt = 0.0;
+        
 
 	/* as a 1st step, a reference measurement of the angular rate sensor is 
 	 * done. This value is used as offset compensation */
@@ -135,17 +138,18 @@ void balance(void)
 		last_read = millis();
 		
 		// Get input from our Potentiometer used for debugging
-		pot = map(analogRead(pot_pin), 0, 1023, 0, 100);
+		pot = map(analogRead(pot_pin), 0, 1023, 0, 25);
                 
 		// get rate gyro reading and convert to deg/sec
 		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. because forward is CCW)
                 // q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;      // 3.3v / 1024-bit / 0.15mV * 10
-                // q_m = (analogRead(gyro_pin) - g_bias) * -0.3255;	// each bit = 0.3255 /deg/sec 
+                //q_m = (analogRead(gyro_pin) - g_bias) * -0.325520833;	// 5v / each bit = 0.3255 /deg/sec 
                 q_m = (analogRead(gyro_pin) - q_bias) * -0.21484375;      // 3.3v / 1024-bit / 0.15mV * 10
 		state_update(q_m);                                	// Update Kalman filter
 		
 		// get Accelerometer reading and convert to units of gravity.  
                 // x = (GetADC(accel_sensor) - x_offset) / 204.9;	// (205 bits/G)
+                //x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.0048828125;	// each bit = 0.00322/G
 		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.003222656;	// each bit = 0.00322/G
 
 		// x is measured in multiples of earth gravitation g
@@ -156,6 +160,8 @@ void balance(void)
 		kalman_update(tilt);
 		
 		int_angle += angle * dt_PARAM;
+                angle_velocity = (tilt - last_tilt)* 60 ;               
+                last_tilt = tilt;
                 
                 angle_avg[angle_cnt] = tilt;
                 angle_cnt++;
@@ -173,8 +179,8 @@ void balance(void)
 		
                 
                 // Balance.  The most important line in the entire program.
-		torque = (pot * ((-157.7 - q_bias) + angle)) + ((angle_drift) * pot) + (rate * 2.5); 
-                
+		torque = ((Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * pot); // + (int_angle * Ki); 
+               // torque = (int) (angle_velocity) + (rate * 3); //+ (int_angle * Ki);
 		// change from current angle to something proportional to speed
 		// should this be the abs val of the cur speed or just curr speed?
 		//double steer_cmd = (1.0 / (1.0 + Ksteer2 * fabs(current_angle))) * (Ksteer * steer_knob);
@@ -222,11 +228,11 @@ void printData()
 {
     Serial.print(int(angle));
     Serial.print(",");
-    Serial.print(int((-157.7 - q_bias) + angle));
+    Serial.print((angle - angle_drift)); /*(-157.7 - q_bias)) -*/
     Serial.print(",");
     Serial.print(int(rate));
     Serial.print(",");
-    Serial.print((-157.7 - q_bias) - angle);
+    Serial.print(int(q_bias));
     Serial.print(",");
     Serial.println(pot);
 }
