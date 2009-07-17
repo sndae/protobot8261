@@ -59,7 +59,7 @@
 		
 // value at 0 degrees  / 1 unit .4 degees  (move to +90 -90 / 2)
 //#define 	ACCEL_OFFSET 		650	
-//#define 	ACCEL_OFFSET 		540	
+//#define 	ACCEL_OFFSET 		532   // 540	
 #define 	ACCEL_OFFSET		744   // 647, 733, 744
 
 // gyro is 2 mv/(deg/sec), ADC is 2.5mv/tick: 2/2.5 ; degrees/sec = adc * .8 
