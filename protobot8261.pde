@@ -41,9 +41,9 @@ PushButton pushButton(2);
 // Each ADC unit equals: 3.22265625 / 1000mv/G = 0.003222656 g
 
 // Balance
-int torque;
-int angle_cnt = 0;
-int rate_cnt = 0;
+int torque, last_torque, angle_cnt, rate_cnt = 0;
+int d_term, angle_product, velocity_product = 0;
+double i_term = 0;
 
 double angle_drift = 0.0;
 double angle_velocity = 0.0;
@@ -62,7 +62,7 @@ double	q_bias = 0.0;
 double	rate = 0.0;
 
 //	PID Konstants
-double Kp = 25;				// balance loop P gain
+double Kp = 20;				// balance loop P gain
 double Ki = 5;				// balance loop I gain
 double Kd = 1;    			// balance loop D gain
 
@@ -138,7 +138,7 @@ void balance(void)
 		last_read = millis();
 		
 		// Get input from our Potentiometer used for debugging
-		pot = map(analogRead(pot_pin), 0, 1023, 0, 25);
+		pot = map(analogRead(pot_pin), 0, 1023, 0, 50);
                 
 		// get rate gyro reading and convert to deg/sec
 		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. because forward is CCW)
@@ -163,6 +163,11 @@ void balance(void)
                 angle_velocity = (tilt - last_tilt)* 60 ;               
                 last_tilt = tilt;
                 
+                d_term = angle_product - last_torque;
+                last_torque = angle_product;
+                i_term = (d_term / 10);
+                i_term = pow(i_term, 2.0);
+                
                 angle_avg[angle_cnt] = tilt;
                 angle_cnt++;
                 if(angle_cnt > 9)
@@ -176,10 +181,13 @@ void balance(void)
                 if(rate_cnt > 19)
                     rate_cnt = 0;
                 rate = getAverageDouble(rate_avg, 20);
-		
                 
+		              
                 // Balance.  The most important line in the entire program.
-		torque = ((Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * pot); // + (int_angle * Ki); 
+                angle_product = (Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * 3); // + (int_angle * Ki); 
+                velocity_product = d_term ;// + (int_angle * Ki); 
+                torque = angle_product + velocity_product;
+		//torque = (Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * 3) + i_term; // + (int_angle * Ki); 
                // torque = (int) (angle_velocity) + (rate * 3); //+ (int_angle * Ki);
 		// change from current angle to something proportional to speed
 		// should this be the abs val of the cur speed or just curr speed?
@@ -228,9 +236,9 @@ void printData()
 {
     Serial.print(int(angle));
     Serial.print(",");
-    Serial.print((angle - angle_drift)); /*(-157.7 - q_bias)) -*/
+    Serial.print(d_term); /*(-157.7 - q_bias)) -*/
     Serial.print(",");
-    Serial.print(int(rate));
+    Serial.print(i_term);
     Serial.print(",");
     Serial.print(int(q_bias));
     Serial.print(",");
