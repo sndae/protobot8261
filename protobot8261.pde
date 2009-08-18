@@ -18,13 +18,16 @@
  */
 #include <math.h>
 #include <PushButton.h>
-#include <CompactQik2s9v1.h>
-#include <NewSoftSerial.h>
 #include "parameters.h"
 
-NewSoftSerial mySerial =  NewSoftSerial(rx_pin, tx_pin);
-CompactQik2s9v1 motor = CompactQik2s9v1(&mySerial,rst_pin);
 PushButton pushButton(2);
+
+// Motor pins stored in array. 
+int motor_left[] = {5, 6};
+int motor_right[] = {9, 10};
+
+// Settings 
+boolean debug = false;
 
 // ADC (Built in 10 bit 0-5V) Information.
 // Each ADC unit equals: 5.0V / 1024 = 0.004882812 V = 4.8828125 mV
@@ -40,61 +43,63 @@ PushButton pushButton(2);
 // Each ADC unit equals: 4.8828125 / 1000mv/G = 0.0048828125 g
 // Each ADC unit equals: 3.22265625 / 1000mv/G = 0.003222656 g
 
-// Balance
-int torque, last_torque, angle_cnt, rate_cnt = 0;
-int d_term, angle_product, velocity_product = 0;
-double i_term = 0;
 
-double angle_drift = 0.0;
-double angle_velocity = 0.0;
-double angle_x = 0.0;
-double angle_avg[10];
-double rate_avg[50];     // rate average.
+// Balance
+int torque, p_term, d_term, f_term, i_term, old_angle, rate_cnt = 0;
+
+
+// PID Konstants
+int Kp = 1000;			        // balance loop P gain
+int Ki = 80;				// balance loop I gain
+double Kd = 0.1;                        // balance loop D gain
+int Kf = 4;			        // balance loop f gain
+
 
 /*
  * Our two states, the angle and the gyro bias.  As a byproduct of computing
  * the angle, we also have an unbiased angular rate available.   These are
  * read-only to the user of the module.
  */
- 
-double	angle = 0.0;
-double	q_bias = 0.0;
-double	rate = 0.0;
+double angle = 0.0;                    // after kalman filter result in degrees
+double angle_inv = 0.0;                // inverted case of kalman res degrees
+double q_bias = 0.0;
+double rate = 0.0;                      // Angular velocity
+int rate_inv = 0.0;                  // inverted case of rate
+int rate_vel = 0.0;                  // product of several rate records.
+int rate_avg[20];                    // rate average Array.
+double q_m = 0.0;                       // Raw gyro in degrees per second.
+double x = 0.0;                         // Raw X value.
+double tilt = 0.0;                      // X * (pi/180.0). Will store X in degree's
+//double x_offset = 532;		// offset value 2.56V * 1024 / 4.93V = 4254
+long int g_bias = 0;
 
-//	PID Konstants
-double Kp = 20;				// balance loop P gain
-double Ki = 5;				// balance loop I gain
-double Kd = 1;    			// balance loop D gain
-
-//double Ksteer;			// steering control gain
-//double Ksteer2;			// steering control tilt sensitivity
-//double Kspeed; 			// speed tracking gain
-double neutral = neutral_PARAM;		// "angle of natural balance"
-
-//double KpTurn;			// turn rate loop P gain
-//double KiTurn;			// turn rate loop I gain
-//double KdTurn;			// turn rate loop D gain
 
 // Analog Input
-double pot;			 	// analog input from Potentiometer
+int pot;			 	// analog input from Potentiometer
+int pot2;                               // analog input from Potentiometer 
+
 
 // Time
 unsigned long last_read; 		// Last time we ran our script
+
 
 // Init mode
 void setup()
 {
     pinMode(led1_pin, OUTPUT); 		// LED 1
     pinMode(led2_pin, OUTPUT);		// LED 2
+    for(int i = 0; i < 2; i++){
+        pinMode(motor_left[i], OUTPUT);
+        pinMode(motor_right[i], OUTPUT);
+    }
     analogReference(EXTERNAL); 		// 3.3v External Ref on Arduino
-    Serial.begin(38400);		// Serial at 38,400 Baud rate.
-    mySerial.begin(38400);		// Serial at 38,400 Baud rate used for motor.
-    motor.begin();			// Init Motor controller.
-    motor.stopBothMotors();		// Stop.
+    if(debug)
+        Serial.begin(115200);		// Serial at 115,200 Baud rate.
     delay(200);    			// Wait 0.2 sec.
 }
 
-// Constant Loop for our bot. 
+
+// Loop for our bot. 
 void loop() {
     if(pushButton.getState()){
         digitalWrite(led1_pin, HIGH);   // Light a LED
@@ -104,161 +109,139 @@ void loop() {
     else{
         digitalWrite(led1_pin, LOW); 	// Lid a LED
         digitalWrite(led2_pin, HIGH);	// Light a LED
+        motor_stop();
     }
 }
+
 
 /* BALANCE my robot, please */
 void balance(void)
 {
-	long int g_bias = 0;
-//	double x_offset = 532;		// offset value 2.56V * 1024 / 4.93V = 4254
-	double q_m = 0.0;               // gyro in degrees per second
-	double int_angle = 0.0;           
-	double x = 0.0;                 // raw x value
-	double tilt = 0.0;              // X * (pi/180.0). Will store x in degree's
-        double last_angle, last_tilt = 0.0;
-        
+    /*
+     * As a 1st step, a reference measurement of the angular rate sensor is 
+     * done. This value is used as offset compensation 
+     */
 
-	/* as a 1st step, a reference measurement of the angular rate sensor is 
-	 * done. This value is used as offset compensation */
-	
-	for (int i=1 ; i<=200; i++) // determine initial value for bias of gyro
-	{
-		g_bias = g_bias + analogRead(gyro_pin);
-	}
-	
-	g_bias = g_bias / 200;
+    for (int i=1 ; i<=200; i++)
+    {
+        g_bias = g_bias + analogRead(gyro_pin);
+    }
+    g_bias = g_bias / 200;
 
-
+    /*
+    * As a 2nd step, we run the game loop. This will continue until the user
+     * press the off switch. The loop runs at a specific Hz which is set based
+     * on hardware. It's limited by sensor refresh rate and analog to DC conversions. 
+     */
     while (pushButton.getState())
-	{
-		/* insure loop runs at specified Hz */
-		while(millis() - last_read < my_dt_PARAM)
-			;
-		last_read = millis();
-		
-		// Get input from our Potentiometer used for debugging
-		pot = map(analogRead(pot_pin), 0, 1023, 0, 50);
-                
-		// get rate gyro reading and convert to deg/sec
-		// q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	// -3.07bits/deg/sec (neg. because forward is CCW)
-                // q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;      // 3.3v / 1024-bit / 0.15mV * 10
-                //q_m = (analogRead(gyro_pin) - g_bias) * -0.325520833;	// 5v / each bit = 0.3255 /deg/sec 
-                q_m = (analogRead(gyro_pin) - q_bias) * -0.21484375;      // 3.3v / 1024-bit / 0.15mV * 10
-		state_update(q_m);                                	// Update Kalman filter
-		
-		// get Accelerometer reading and convert to units of gravity.  
-                // x = (GetADC(accel_sensor) - x_offset) / 204.9;	// (205 bits/G)
-                //x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.0048828125;	// each bit = 0.00322/G
-		x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.003222656;	// each bit = 0.00322/G
+    {
+        /* insure loop runs at specified Hz */
+        while(millis() - last_read < my_dt_PARAM)
+            ;
+        last_read = millis();
 
-		// x is measured in multiples of earth gravitation g
-		// therefore x = sin (tilt) or tilt = arcsin(x)
-		// for small angles in rad (not deg): arcsin(x)=x 
-		// Calculation of deg from rad: 1 deg = 180/pi = 57.29577951
-		tilt = 57.29577951 * (x);
-		kalman_update(tilt);
-		
-		int_angle += angle * dt_PARAM;
-                angle_velocity = (tilt - last_tilt)* 60 ;               
-                last_tilt = tilt;
-                
-                d_term = angle_product - last_torque;
-                last_torque = angle_product;
-                i_term = (d_term / 10);
-                i_term = pow(i_term, 2.0);
-                
-                angle_avg[angle_cnt] = tilt;
-                angle_cnt++;
-                if(angle_cnt > 9)
-                    angle_cnt = 0;
-                angle_x = getAverageDouble(angle_avg, 10);
-		angle_drift = (angle - angle_x);
+        // Get input from our Potentiometer used for debugging
+        pot = map(analogRead(pot_pin), 0, 1023, 50, 1000);
+        pot2 = map(analogRead(pot_pin2), 0, 1023, 670, 740);
 
-                // Rate average calculations               
-                rate_avg[rate_cnt] = rate;
-                rate_cnt++;
-                if(rate_cnt > 19)
-                    rate_cnt = 0;
-                rate = getAverageDouble(rate_avg, 20);
-                
-		              
-                // Balance.  The most important line in the entire program.
-                angle_product = (Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * 3); // + (int_angle * Ki); 
-                velocity_product = d_term ;// + (int_angle * Ki); 
-                torque = angle_product + velocity_product;
-		//torque = (Kp * ((angle_x /*- (-157.7 - q_bias)*/) + angle_drift)) + (rate * 3) + i_term; // + (int_angle * Ki); 
-               // torque = (int) (angle_velocity) + (rate * 3); //+ (int_angle * Ki);
-		// change from current angle to something proportional to speed
-		// should this be the abs val of the cur speed or just curr speed?
-		//double steer_cmd = (1.0 / (1.0 + Ksteer2 * fabs(current_angle))) * (Ksteer * steer_knob);
-		//double steer_cmd = 0.0;
+        // get rate gyro reading and convert to deg/sec
+        // q_m = (GetADC(gyro_sensor) - g_bias) / -3.072;	        // -3.07bits/deg/sec (neg. because forward is CCW)
+        // q_m = (analogRead(gyro_pin) - q_bias) / GYRO_SCALE;          // 3.3v / 1024-bit / 0.15mV * 10
+        // q_m = (analogRead(gyro_pin) - g_bias) * -0.325520833;	// 5v / each bit = 0.3255 /deg/sec 
+        q_m = (analogRead(gyro_pin) - q_bias) * -0.21484375;            // 3.3v / 1024-bit / 0.15mV * 10
+        state_update(q_m);                                	        // Update Kalman filter
+        rate_inv = getInvertedDouble(rate);
 
-		// Get current rate of turn
-		//double current_turn = left_speed - right_speed; //<-- is this correct
-		//double turn_accel = current_turn - prev_turn;
-		//prev_turn = current_turn;
+        // Rate average calculations. Due to noise rate has to be avaraged out.
+        rate_vel = getAverageRate(rate_inv, 15);
 
-		// Closed-loop turn rate PID
-		//double steer_cmd = KpTurn * (current_turn - steer_desired)
-		//					+ KdTurn * turn_accel;
-		//					//+ KiTurn * turn_integrated;
+        // get Accelerometer reading and convert to units of gravity(G).  
+        // x = (GetADC(accel_sensor) - x_offset) / 204.9;	        // (205 bits/G)
+        // x = (analogRead(x_pin) - ACCEL_OFFSET) * 0.0048828125;	// each bit = 0.00322/G
+        x = (analogRead(x_pin) - pot2) * 0.003222656;	                // each bit = 0.00322/G
 
-		// Possibly optional
-		//turn_integrated += current_turn - steer_cmd;
+        // x is measured in multiples of earth gravitation g
+        // therefore x = sin (tilt) or tilt = arcsin(x)
+        // for small angles in rad (not deg): arcsin(x)=x 
+        // Calculation of deg from rad: 1 deg = 180/pi = 57.29577951
+        tilt = 57.29577951 * (x);
+        kalman_update(tilt);
 
-		//	Differential steering
-		//left_motor_torque	= balance_torque + steer_cmd; //+ cur_speed + steer_cmd;
-		//right_motor_torque	= balance_torque - steer_cmd; //+ cur_speed - steer_cmd;
+        // PID. Calculate our motor gain or loss.
+        p_term = tilt * Kp;
+       // i_term = (i_term + (tilt * Ki)) * .9999;
+        d_term = (tilt - old_angle) * Kd;
+        f_term = (rate_inv * Kf) + (rate_vel * (Kf + 2));
 
-		// Limit extents of torque demand
-		//left_motor_torque = flim(left_motor_torque, -MAX_TORQUE, MAX_TORQUE);
-//		if (left_motor_torque < -MAX_TORQUE) left_motor_torque = -MAX_TORQUE;
-//		if (left_motor_torque > MAX_TORQUE)  left_motor_torque =  MAX_TORQUE;
+        old_angle = tilt;
 
-		//right_motor_torque = flim(right_motor_torque, -MAX_TORQUE, MAX_TORQUE);
-//		if (right_motor_torque < -MAX_TORQUE) right_motor_torque = -MAX_TORQUE;
-//		if (right_motor_torque > MAX_TORQUE)  right_motor_torque =  MAX_TORQUE;
-                
-		//torque = (int) ((angle -3.5) * Kp) + (rate * Kd);//  + (int_angle * Ki);
+        // Balance.  The most important line in the entire program.
+        torque = (int) p_term + d_term + f_term;
 
-		// Set PWM values for both motors
-                // See motor.pde for more comments on the theoretics behind torque. etc.
-		driveMotors(torque);
-		printData();		// Print data for debugging.
-	}
-    motor.stopBothMotors();			// Stop.
+        /*overspeed? if(torque > 800 || torque < -800)
+         torque *= 1.2;*/
+
+        // Set PWM values for both motors
+        // See motor.pde for more comments on the theoretics behind torque. etc.
+        driveMotors(torque);
+
+        // Print data for debugging.
+        if(debug)
+            printData();
+    }
 }
 
-/* Print data from acc and gyro. 
+/* 
+ * Print data from acc and gyro. 
  */
 void printData()
 {
-    Serial.print(int(angle));
+    Serial.print(angle);
     Serial.print(",");
-    Serial.print(d_term); /*(-157.7 - q_bias)) -*/
+    Serial.print(tilt); 
     Serial.print(",");
-    Serial.print(i_term);
+    Serial.print(rate);
     Serial.print(",");
-    Serial.print(int(q_bias));
+    Serial.print(q_bias);
     Serial.print(",");
-    Serial.println(pot);
+    Serial.println(pot2);
 }
 
-/* Convert ADC to volt.
- @param ADC 10-bit value to convert
- @return volt of ADC.
+/*
+ *   Return the average for our rate sensor
  */
-float getVolt(float adc)
-{
-    return (adc / 1024.0) * 3.3;
+int getAverageRate(double _rate, int size){
+    rate_avg[rate_cnt] = (int) _rate;
+    rate_cnt++;
+    if(rate_cnt == size)
+        rate_cnt = 0;
+    return getAverageDouble(rate_avg, size);
 }
 
-/* Get average of a floating point array */
-double getAverageDouble(double avg[], int size)
+/* 
+ * Return average of a floating point array 
+ */
+int getAverageDouble(int avg[], int size)
 {
-    double sum = 0.0;
+    int sum = 0.0;
     for (int i = 0; i < size; i++)
         sum += avg[i];
     return sum / size;
+}
+/* 
+ * Return the inverted value of given imput 
+ */
+double getInvertedDouble(double value)
+{
+    return (value - (value * 2));
+}
+
+/* 
+ * Convert ADC to volt.
+ @param ADC 10-bit value to convert
+ @return volt of ADC.
+ */
+double getVolt(double adc)
+{
+    return (adc / 1024.0) * 3.3;
 }

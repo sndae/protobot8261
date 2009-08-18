@@ -27,22 +27,69 @@
  20 degree in radians is 0.3491. using the above formula gives me a proportional
  incline based on degree of robot. 
  */
- 
+int prop_speed = 1000;
 #include "parameters.h"
 
 void driveMotors(int pwm)
 {
     if(pwm >= 0){
-        pwm = constrain(pwm, 0, 255);
-	pwm = map(pwm, 0, 255, 0, 127);        
-        motor.motor0Reverse(pwm);
-        motor.motor1Reverse(pwm);
+        pwm = constrain(pwm, 0, prop_speed);
+	pwm = map(pwm, 0, prop_speed, 0, MAX_TORQUE);       
+        /*motor.motor0Forward(pwm);
+        motor.motor1Forward(pwm);*/
+        drive_backward(pwm);
     }
     else{
         pwm = abs(pwm);
-        pwm = constrain(pwm, 0, 255);
-	pwm = map(pwm, 0, 255, 0, 127);
-        motor.motor0Forward(pwm);
-        motor.motor1Forward(pwm);
+        pwm = constrain(pwm, 0, prop_speed);
+	pwm = map(pwm, 0, prop_speed, 0, MAX_TORQUE);
+       /* motor.motor0Reverse(pwm);
+        motor.motor1Reverse(pwm);*/
+        drive_forward(pwm);
     }
+}
+
+void motor_stop()
+{
+    digitalWrite(motor_left[0], LOW);
+    digitalWrite(motor_left[1], LOW);
+
+    digitalWrite(motor_right[0], LOW);
+    digitalWrite(motor_right[1], LOW);
+}
+
+void drive_forward(int pwm)
+{
+    analogWrite(motor_left[0], pwm);
+    analogWrite(motor_left[1], LOW);
+
+    analogWrite(motor_right[0], pwm);
+    analogWrite(motor_right[1], LOW);
+}
+
+void drive_backward(int pwm)
+{
+    analogWrite(motor_left[0], LOW);
+    analogWrite(motor_left[1], pwm);
+
+    analogWrite(motor_right[0], LOW);
+    analogWrite(motor_right[1], pwm);
+}
+
+void turn_left()
+{
+    digitalWrite(motor_left[0], LOW);
+    digitalWrite(motor_left[1], HIGH);
+
+    digitalWrite(motor_right[0], HIGH);
+    digitalWrite(motor_right[1], LOW);
+}
+
+void turn_right()
+{
+    digitalWrite(motor_left[0], HIGH);
+    digitalWrite(motor_left[1], LOW);
+
+    digitalWrite(motor_right[0], LOW);
+    digitalWrite(motor_right[1], HIGH);
 }

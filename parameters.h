@@ -28,7 +28,7 @@
 //define		dt_PARAM		0.100		//	10 Hz rate
 //#define		dt_PARAM		0.01		//	100 Hz rate
 #define		dt_PARAM		0.02		//	50 Hz rate
-#define 	my_dt_PARAM 	20 		// 50 Hz rate
+#define 	my_dt_PARAM 	20		// 50 Hz rate
 
 //	R may be used for tuning Kalman
 //	R represents the measurement covariance noise.  In this case,
@@ -37,7 +37,7 @@
 //
 //	Adjusting R changes the speed at which the filter converges.
 //	It is an indication of trust in the measurement
-#define		R_angle_PARAM		.2			//	n rad jitter  / .3
+#define		R_angle_PARAM		0.1			//	n rad jitter  / .3
 //  #define R_angle 0.4 // 0.0034906555555555555556; // 0.3;
 
 //	Q may be used for tuning Kalman
@@ -60,7 +60,7 @@
 // value at 0 degrees  / 1 unit .4 degees  (move to +90 -90 / 2)
 //#define 	ACCEL_OFFSET 		650	
 //#define 	ACCEL_OFFSET 		532   // 540	
-#define 	ACCEL_OFFSET		744   // 647, 733, 744
+#define 	ACCEL_OFFSET		740   // 647, 733, 744
 
 // gyro is 2 mv/(deg/sec), ADC is 2.5mv/tick: 2/2.5 ; degrees/sec = adc * .8 
 // gyro is 2 mv/(deg/sec), ADC is 3.22mv/tick: 2/3.3  ; degrees/sec = adc * .62
@@ -77,17 +77,13 @@
 //	Neutral or Natural balance angle
 //	You might change this by .1 at a time until tuned    
 //#define	neutral_PARAM 	-7.7		// "angle of natural balance"  
-#define		neutral_PARAM 	-2			// "angle of natural balance"  
 #define		neutral_PARAM 	0			// "angle of natural balance"  
 
 //	Motor Bias - left and right
 #define		mb_PARAM 	5		//	PWM required to get the motor turning
-#define MAX_TORQUE		127
+#define         MAX_TORQUE	255
 
 // 	PID adjustable gains
-//
-//	Proportional Constant
-#define		Kp_PARAM 			200			// balance loop P gain
 
 //	Differential Constant
 //	You might change this by .1 to .5 at a time until tuned // 12.5
@@ -114,7 +110,7 @@
 
 //  Analog Pins on Arduino
 #define x_pin 		0
-#define y_pin 		1
-#define gyro_pin 	2 
-#define gyroref_pin     3
+#define gyro_pin 	1 
+#define gyroref_pin     2
 #define pot_pin 	4
+#define pot_pin2        5
