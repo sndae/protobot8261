@@ -1,5 +1,5 @@
 /*
-*     Based on Trammell Hudsons work on the autopilot system.
+ *     Based on Trammell Hudsons work on the autopilot system.
  *     see http://www.rotomotion.com/downloads/tilt.c for original
  *     code. Although, this version is based on James Ronald's
  *     c implementation found at Google code; http://code.google.com/p/b3r1/.
@@ -12,9 +12,9 @@
  *     This code is created for a 3 DOF IMU board, measuring
  *     tilt and angular velocity fusing the sensors with the 
  *     Kalman filter to adhence for noise and predict it's 
- *     movement. 
- 
- *     Simon Zimmermann, June 2009.
+ *     movement. Code is optimized for an Arduino board. 
+ *     
+ *     edited by Simon Zimmermann, August 2009.
  */
 #include <math.h>
 #include <PushButton.h>
@@ -25,6 +25,7 @@ PushButton pushButton(2);
 // Motor pins stored in array. 
 int motor_left[] = {5, 6};
 int motor_right[] = {9, 10};
+int LED_array[] = {13, 12};
 
 // Settings 
 boolean debug = false;
@@ -46,14 +47,6 @@ boolean debug = false;
 
 // Balance
 int torque, p_term, d_term, f_term, i_term, old_angle, rate_cnt = 0;
-
-
-// PID Konstants
-int Kp = 1000;			        // balance loop P gain
-int Ki = 80;				// balance loop I gain
-double Kd = 0.1;                        // balance loop D gain
-int Kf = 4;			        // balance loop f gain
-
 
 /*
  * Our two states, the angle and the gyro bias.  As a byproduct of computing
@@ -86,11 +79,10 @@ unsigned long last_read; 		// Last time we ran our script
 // Init mode
 void setup()
 {
-    pinMode(led1_pin, OUTPUT); 		// LED 1
-    pinMode(led2_pin, OUTPUT);		// LED 2
     for(int i = 0; i < 2; i++){
         pinMode(motor_left[i], OUTPUT);
         pinMode(motor_right[i], OUTPUT);
+	pinMode(LED_array[i], OUTPUT); 		// LEDs
     }
     analogReference(EXTERNAL); 		// 3.3v External Ref on Arduino
     if(debug)
@@ -102,13 +94,13 @@ void setup()
 // Loop for our bot. 
 void loop() {
     if(pushButton.getState()){
-        digitalWrite(led1_pin, HIGH);   // Light a LED
-        digitalWrite(led2_pin, LOW);	// Lid a LED
-        balance(); 			// Run balance script.
+        digitalWrite(LED_array[0], HIGH);	// Light a LED
+        digitalWrite(LED_array[1], LOW);	// Lid a LED
+        balance(); 				// Run balance script.
     }
     else{
-        digitalWrite(led1_pin, LOW); 	// Lid a LED
-        digitalWrite(led2_pin, HIGH);	// Light a LED
+        digitalWrite(LED_array[0], LOW); 	// Lid a LED
+        digitalWrite(LED_array[1], HIGH);	// Light a LED
         motor_stop();
     }
 }
@@ -164,14 +156,14 @@ void balance(void)
         // therefore x = sin (tilt) or tilt = arcsin(x)
         // for small angles in rad (not deg): arcsin(x)=x 
         // Calculation of deg from rad: 1 deg = 180/pi = 57.29577951
-        tilt = 57.29577951 * (x);
+        tilt = RAD_TO_DEGREE * (x);
         kalman_update(tilt);
 
         // PID. Calculate our motor gain or loss.
-        p_term = tilt * Kp;
+        p_term = tilt * Kp_PARAM;
        // i_term = (i_term + (tilt * Ki)) * .9999;
-        d_term = (tilt - old_angle) * Kd;
-        f_term = (rate_inv * Kf) + (rate_vel * (Kf + 2));
+        d_term = (tilt - old_angle) * Kd_PARAM;
+        f_term = (rate_inv * Kf_PARAM) + (rate_vel * (Kf_PARAM + 2));
 
         old_angle = tilt;
 
