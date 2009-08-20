@@ -28,7 +28,7 @@
 //define		dt_PARAM		0.100		//	10 Hz rate
 //#define		dt_PARAM		0.01		//	100 Hz rate
 #define		dt_PARAM		0.02		//	50 Hz rate
-#define 	my_dt_PARAM 	20		// 50 Hz rate
+#define 	my_dt_PARAM 		20		// 50 Hz rate
 
 //	R may be used for tuning Kalman
 //	R represents the measurement covariance noise.  In this case,
@@ -66,7 +66,7 @@
 // gyro is 2 mv/(deg/sec), ADC is 3.22mv/tick: 2/3.3  ; degrees/sec = adc * .62
 // ADXRS401 gyro is 15mv/(deg/sec), ADC is 3.22mv/bit: 15/3.22  ; degrees/sec = adc * 4.65
 // ADXRS401 gyro is 15mv/(deg/sec), ADC is 4.88mv/bit: 15/4.88  ; degrees/sec = adc * 3.07
-#define 	GYRO_SCALE 			-4.65
+#define 	GYRO_SCALE 		-4.65
 
 
 // ADC bits per 90 degrees
@@ -77,35 +77,27 @@
 //	Neutral or Natural balance angle
 //	You might change this by .1 at a time until tuned    
 //#define	neutral_PARAM 	-7.7		// "angle of natural balance"  
-#define		neutral_PARAM 	0			// "angle of natural balance"  
+#define		neutral_PARAM 	0		// "angle of natural balance"  
 
 //	Motor Bias - left and right
 #define		mb_PARAM 	5		//	PWM required to get the motor turning
 #define         MAX_TORQUE	255
 
 // 	PID adjustable gains
+#define Kp_PARAM 		1000	    // balance loop P gain
+#define Ki_PARAM 		80	    // balance loop I gain
+#define Kd_PARAM 		0.1         // balance loop D gain
+#define Kf_PARAM 		4	    // balance loop f gain
 
-//	Differential Constant
-//	You might change this by .1 to .5 at a time until tuned // 12.5
-//	#define		Kd_PARAM	 		22	// balance loop D gain -- good for 8.4 volt lipol
-#define		Kd_PARAM	 		12		// balance loop D gain -- good for 8.4 volt lipol
 #define RAD_TO_DEG	(180 / 3.1415926535897932384626433832795)
 
 
 //	Robot statistics. Can be used for calculating torque.
-#define rob_weight_PARAM	0.650	 // Weight of robot measured in kilogram.
+#define rob_weight_PARAM	0.630	 // Weight of robot measured in kilogram.
 #define rob_lenght_PARAM 	0.22 	 // Height of robot measured in meter.
 #define rob_wheel_PARAM 	0.021	 // Radius of Wheels measured in meter.
 #define rob_motor_kg_PARAM	0.002548 // Torque of motors measured in kilogram meter.
 #define gravity_PARAM		9.8 	 // m/s gravity. This should be 0.098 if mydt is 10. 
-
-
-//  Digital Pins on Arduino
-#define rx_pin 		3
-#define tx_pin 		4
-#define rst_pin 	5
-#define led1_pin 	13
-#define led2_pin 	12
 
 
 //  Analog Pins on Arduino
