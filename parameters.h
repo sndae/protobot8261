@@ -89,7 +89,7 @@
 #define Kd_PARAM 		0.1         // balance loop D gain
 #define Kf_PARAM 		4	    // balance loop f gain
 
-#define RAD_TO_DEG	(180 / 3.1415926535897932384626433832795)
+#define RAD_TO_DEGREE	(180 / 3.1415926535897932384626433832795)
 
 
 //	Robot statistics. Can be used for calculating torque.
